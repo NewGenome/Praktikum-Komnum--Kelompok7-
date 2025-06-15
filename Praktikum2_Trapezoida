@@ -1,0 +1,70 @@
+import numpy as np
+from sympy import symbols, sympify, lambdify, integrate
+import matplotlib.pyplot as plt
+
+def trapezoidal(f, a, b, n):
+    h = (b - a) / n
+    s = f(a) + f(b)
+    for i in range(1, n):
+        s += 2 * f(a + i * h)
+    return h * s / 2
+
+def romberg(f, a, b, max_level=5):
+    R = np.zeros((max_level, max_level))
+    for i in range(max_level):
+        n = 2 ** i
+        R[i][0] = trapezoidal(f, a, b, n)
+        for j in range(1, i + 1):
+            R[i][j] = (4**j * R[i][j-1] - R[i-1][j-1]) / (4**j - 1)
+    return R
+
+def get_exact(expr, a, b):
+    x = symbols('x')
+    try:
+        exact = integrate(sympify(expr), (x, a, b)).evalf()
+        return float(exact)
+    except:
+        return None
+
+def compare_methods(expr, a, b, romberg_level=5, trap_n=1024):
+    x = symbols('x')
+    f_sym = sympify(expr)
+    f = lambdify(x, f_sym, 'numpy')
+
+    trap_val = trapezoidal(f, a, b, trap_n)
+    R = romberg(f, a, b, romberg_level)
+    romberg_val = R[romberg_level - 1][romberg_level - 1]
+
+    exact = get_exact(expr, a, b)
+    print(f"\n=== Perbandingan ===")
+    print(f"Fungsi        : {expr}")
+    print(f"Interval        : [{a}, {b}]")
+    print(f"Nilai Pasti     : {exact:.10f}" if exact else "Nilai Pasti     : Tidak Ditemukan")
+    print(f"\nTrapezoid (n={trap_n})   : {trap_val:.10f}")
+    print(f"Romberg (level {romberg_level}) : {romberg_val:.10f}")
+
+    if exact:
+        trap_err = abs(trap_val - exact)
+        romb_err = abs(romberg_val - exact)
+        print(f"\nError Trapezoid : {trap_err:.10e}")
+        print(f"Error Romberg    : {romb_err:.10e}")
+
+    romberg_seq = [R[i][i] for i in range(romberg_level)]
+    plt.plot(range(1, romberg_level+1), romberg_seq, marker='o', label="Romberg")
+    plt.axhline(trap_val, color='r', linestyle='--', label=f"Trapezoid (n={trap_n})")
+    if exact:
+        plt.axhline(exact, color='g', linestyle=':', label="Exact value")
+    plt.xlabel("Romberg Level")
+    plt.ylabel("Estimasi Integral")
+    plt.title("Perbandingan Konvergensi: Romberg vs Trapezoid")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+if __name__ == "__main__":
+    print("=== Romberg vs Trapezoid ===")
+    print("Note : Masukkan fungsi dalam bentuk ekspresi Python, misalnya x**3 - x - 2")
+    expr = input("Masukkan Fungsi f(x): ")
+    a = float(input("Masukkan Batas Bawah (a): "))
+    b = float(input("Masukkan Batas Atas (b)): "))
+    compare_methods(expr, a, b)
